@@ -304,6 +304,106 @@ class HybridRetriever:
         
         return results[:top_k]
     
+    def batch_search(
+        self,
+        queries: List[str],
+        top_k: Optional[int] = None,
+        rerank: bool = False
+    ) -> List[List[RetrievalResult]]:
+        """
+        Execute batch hybrid search for multiple queries at once.
+        More efficient than calling search() multiple times.
+        
+        Args:
+            queries: List of search queries
+            top_k: Number of results per query
+            rerank: Whether to apply LLM reranking
+            
+        Returns:
+            List of result lists, one per query
+        """
+        if not queries:
+            return []
+        
+        top_k = top_k or self.final_top_k
+        
+        # Batch semantic search (single embedding call)
+        semantic_results_list = self._batch_semantic_search(queries)
+        
+        # BM25 search for each query (already fast)
+        bm25_results_list = [self._bm25_search(q) for q in queries]
+        
+        all_results = []
+        for i, query in enumerate(queries):
+            semantic_results = semantic_results_list[i]
+            bm25_results = bm25_results_list[i]
+            
+            # Merge results
+            all_ids = set(semantic_results.keys()) | set(bm25_results.keys())
+            
+            results = []
+            for doc_id in all_ids:
+                doc = self._document_store.get(doc_id, {})
+                
+                result = RetrievalResult(
+                    id=doc_id,
+                    content=doc.get('content', ''),
+                    title=doc.get('title', ''),
+                    metadata=doc.get('metadata', {}),
+                    semantic_score=semantic_results.get(doc_id, 0.0),
+                    bm25_score=bm25_results.get(doc_id, 0.0)
+                )
+                results.append(result)
+            
+            # Calculate validation and recency scores
+            for result in results:
+                result.validation_score = self._get_validation_score(result)
+                result.recency_score = self._get_recency_score(result)
+            
+            # Score fusion
+            for result in results:
+                result.final_score = self._calculate_final_score(result)
+            
+            # Sort by final score and return top-K
+            results.sort(key=lambda x: x.final_score, reverse=True)
+            all_results.append(results[:top_k])
+        
+        return all_results
+    
+    def _batch_semantic_search(self, queries: List[str]) -> List[Dict[str, float]]:
+        """Execute batch semantic search with FAISS for multiple queries at once."""
+        if self._faiss_index is None:
+            self._load_faiss_index()
+        
+        if self._faiss_index is None:
+            return [{} for _ in queries]
+        
+        # Get all query embeddings in one batch call
+        query_embeddings = self.embedding_model.encode(
+            queries,
+            normalize_embeddings=self.config['embeddings']['normalize'],
+            show_progress_bar=True,
+            batch_size=self.config['embeddings']['batch_size']
+        )
+        
+        # Batch search
+        scores_batch, indices_batch = self._faiss_index.search(
+            query_embeddings.astype('float32'),
+            self.semantic_top_k
+        )
+        
+        all_results = []
+        for scores, indices in zip(scores_batch, indices_batch):
+            results = {}
+            for score, idx in zip(scores, indices):
+                if idx >= 0 and idx < len(self._faiss_id_map):
+                    doc_id = self._faiss_id_map[idx]
+                    # Normalize score to 0-1
+                    results[doc_id] = float(max(0, min(1, (score + 1) / 2)))
+            all_results.append(results)
+        
+        return all_results
+
     def _semantic_search(self, query: str) -> Dict[str, float]:
         """Execute semantic search with FAISS."""
         if self._faiss_index is None:
