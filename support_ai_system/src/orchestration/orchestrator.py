@@ -109,36 +109,48 @@ class SystemOrchestrator:
             logger.warning("No KB questions found for retrieval evaluation")
             return {'hit_at_1': 0.0, 'hit_at_3': 0.0, 'mrr': 0.0}
         
-        hits_at_1 = 0
-        hits_at_3 = 0
-        reciprocal_ranks = []
+        # Filter valid questions and collect queries + targets
+        valid_questions = []
+        queries = []
+        target_ids = []
         
         for q in questions:
             query = q.get('question_text', '')
             target_id = q.get('target_id', '')
+            if query and target_id:
+                valid_questions.append(q)
+                queries.append(query)
+                target_ids.append(target_id)
+        
+        if not queries:
+            return {'hit_at_1': 0.0, 'hit_at_3': 0.0, 'mrr': 0.0}
+        
+        # Batch search all queries at once
+        try:
+            all_results = self._retriever.batch_search(queries, top_k=10, rerank=False)
+        except Exception as e:
+            logger.error(f"Batch search failed: {e}")
+            return {'hit_at_1': 0.0, 'hit_at_3': 0.0, 'mrr': 0.0}
+        
+        # Calculate metrics
+        hits_at_1 = 0
+        hits_at_3 = 0
+        reciprocal_ranks = []
+        
+        for results, target_id in zip(all_results, target_ids):
+            result_ids = [r.id for r in results]
             
-            if not query or not target_id:
-                continue
-            
-            # Search and get results
-            try:
-                results = self._retriever.search(query, top_k=10, rerank=False)
-                result_ids = [r.id for r in results]
-                
-                if target_id in result_ids:
-                    rank = result_ids.index(target_id) + 1
-                    reciprocal_ranks.append(1.0 / rank)
-                    if rank == 1:
-                        hits_at_1 += 1
-                    if rank <= 3:
-                        hits_at_3 += 1
-                else:
-                    reciprocal_ranks.append(0.0)
-            except Exception as e:
-                logger.debug(f"Search failed for question: {e}")
+            if target_id in result_ids:
+                rank = result_ids.index(target_id) + 1
+                reciprocal_ranks.append(1.0 / rank)
+                if rank == 1:
+                    hits_at_1 += 1
+                if rank <= 3:
+                    hits_at_3 += 1
+            else:
                 reciprocal_ranks.append(0.0)
         
-        total = len(questions)
+        total = len(queries)
         return {
             'hit_at_1': hits_at_1 / total if total > 0 else 0.0,
             'hit_at_3': hits_at_3 / total if total > 0 else 0.0,
