@@ -34,10 +34,30 @@ class SystemOrchestrator:
         
         if Path(excel_path).exists():
             sheets = ingestion.ingest(excel_path)
+            
+            # Map sheet names to table names
+            sheet_to_table = {
+                'conversations': 'conversations',
+                'tickets': 'tickets',
+                'scripts_master': 'scripts',
+                'scripts': 'scripts',
+                'knowledge_articles': 'knowledge_articles',
+                'questions': 'questions',
+                'kb_lineage': 'kb_lineage',
+                'learning_events': 'learning_events',
+                'placeholders': 'placeholders'
+            }
+            
             for sheet_name, df in sheets.items():
-                table = sheet_name.lower().replace(' ', '_')
-                if table in ['conversations', 'tickets', 'scripts', 'knowledge_articles', 'questions']:
-                    self._db.insert_dataframe(table, df)
+                table_key = sheet_name.lower().replace(' ', '_')
+                table = sheet_to_table.get(table_key, table_key)
+                
+                # Only insert into known tables
+                if table in sheet_to_table.values():
+                    rows = self._db.insert_dataframe(table, df)
+                    logger.info(f"Inserted {rows} rows into {table} from sheet {sheet_name}")
+        else:
+            logger.warning(f"Excel file not found: {excel_path}")
     
     def build_indexes(self):
         from src.retrieval import HybridRetriever

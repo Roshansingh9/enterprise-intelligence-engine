@@ -73,7 +73,7 @@ paths:
 # INGESTION SETTINGS
 # -----------------------------------------------------------------------------
 ingestion:
-  excel_file: "data/raw_excel/SupportMind_Final_Data.xlsx"
+  excel_file: "data/raw_excel/SupportMind__Final_Data.xlsx"
   batch_size: 100
   validate_schema: true
   skip_invalid_rows: false
