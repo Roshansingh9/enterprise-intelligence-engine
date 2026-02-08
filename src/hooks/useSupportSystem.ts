@@ -4,13 +4,13 @@ import type { SearchResult, Ticket, SystemMetrics, KBArticle, TrainingState, Tra
 // Auto-retraining constants
 const KB_TRAINING_THRESHOLD = 100;
 
-// Mock data for demonstration
+// Mock data for demonstration - expanded KB library
 const mockKBArticles: KBArticle[] = [
   {
     id: 'KB-640CAF35',
     title: 'Invalid Backend Voucher Reference for Date Advance',
     summary: 'Resolution for voucher reference errors when processing date advances in PropertySuite.',
-    content: 'This issue occurs when the backend voucher reference becomes out of sync with the certification data.',
+    content: 'This issue occurs when the backend voucher reference becomes out of sync with the certification data. The error typically appears during date advance processing.',
     steps: [
       'Navigate to the Certification module',
       'Select the affected voucher record',
@@ -22,7 +22,7 @@ const mockKBArticles: KBArticle[] = [
     confidence: 0.92,
     version: 2,
     source: { type: 'ticket', id: 'TKT-2024-1842', date: '2024-01-15' },
-    tags: ['voucher', 'backend', 'date-advance'],
+    tags: ['voucher', 'backend', 'date-advance', 'error'],
     status: 'approved',
     createdAt: '2024-01-15T10:30:00Z',
     updatedAt: '2024-02-08T14:20:00Z'
@@ -31,7 +31,7 @@ const mockKBArticles: KBArticle[] = [
     id: 'KB-9E50469F',
     title: 'Invalid Backend Certification Reference',
     summary: 'Fix for certification reference mismatches in affordable housing workflows.',
-    content: 'Certification references can become invalid when backend data is modified outside the normal workflow.',
+    content: 'Certification references can become invalid when backend data is modified outside the normal workflow. This causes errors during recertification.',
     steps: [
       'Open the affected unit in PropertySuite Affordable',
       'Go to Certifications tab',
@@ -43,10 +43,73 @@ const mockKBArticles: KBArticle[] = [
     confidence: 0.88,
     version: 1,
     source: { type: 'conversation', id: 'CONV-8834', date: '2024-01-20' },
-    tags: ['certification', 'backend', 'affordable'],
+    tags: ['certification', 'backend', 'affordable', 'error'],
     status: 'approved',
     createdAt: '2024-01-20T09:15:00Z',
     updatedAt: '2024-01-20T09:15:00Z'
+  },
+  {
+    id: 'KB-3A7F2B11',
+    title: 'Customer Profile Creation Error',
+    summary: 'Resolution for errors encountered when creating new customer profiles.',
+    content: 'Profile creation errors typically occur due to validation issues or duplicate records in the system.',
+    steps: [
+      'Check for existing profiles with same email or SSN',
+      'Clear browser cache and cookies',
+      'Verify all required fields are filled correctly',
+      'Check that {{EMAIL}} format is valid',
+      'Retry profile creation'
+    ],
+    placeholders: ['EMAIL'],
+    confidence: 0.85,
+    version: 1,
+    source: { type: 'ticket', id: 'TKT-2024-1756', date: '2024-01-10' },
+    tags: ['profile', 'customer', 'creation', 'error'],
+    status: 'approved',
+    createdAt: '2024-01-10T08:00:00Z',
+    updatedAt: '2024-01-10T08:00:00Z'
+  },
+  {
+    id: 'KB-5C9D4E22',
+    title: 'Login Authentication Failed Error',
+    summary: 'Troubleshooting steps for authentication and login failures.',
+    content: 'Login failures can be caused by expired passwords, locked accounts, or SSO configuration issues.',
+    steps: [
+      'Verify the {{USERNAME}} is correct',
+      'Check if the account is locked in Admin Console',
+      'Reset password if expired',
+      'Clear browser cookies for the domain',
+      'If SSO, verify identity provider connection'
+    ],
+    placeholders: ['USERNAME'],
+    confidence: 0.90,
+    version: 2,
+    source: { type: 'script', id: 'AUTH-TROUBLESHOOT-001', date: '2024-02-01' },
+    tags: ['login', 'authentication', 'password', 'sso', 'error'],
+    status: 'approved',
+    createdAt: '2024-02-01T12:00:00Z',
+    updatedAt: '2024-02-05T09:30:00Z'
+  },
+  {
+    id: 'KB-7E1F6G33',
+    title: 'Payment Processing Transaction Failed',
+    summary: 'Steps to resolve payment transaction failures and declined payments.',
+    content: 'Payment failures may be due to gateway timeouts, invalid card details, or insufficient funds.',
+    steps: [
+      'Verify card details are entered correctly',
+      'Check transaction status in payment gateway dashboard',
+      'Confirm {{TRANSACTION_ID}} in payment logs',
+      'Retry transaction after 5 minutes if timeout',
+      'Contact payment processor if issue persists'
+    ],
+    placeholders: ['TRANSACTION_ID'],
+    confidence: 0.87,
+    version: 1,
+    source: { type: 'ticket', id: 'TKT-2024-1923', date: '2024-02-03' },
+    tags: ['payment', 'transaction', 'gateway', 'error', 'declined'],
+    status: 'approved',
+    createdAt: '2024-02-03T14:20:00Z',
+    updatedAt: '2024-02-03T14:20:00Z'
   }
 ];
 
@@ -314,17 +377,45 @@ export function useSupportSystem() {
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     const queryLower = query.toLowerCase();
-    const matched = mockKBArticles.find(kb => 
-      kb.title.toLowerCase().includes(queryLower) ||
-      kb.content.toLowerCase().includes(queryLower) ||
-      kb.tags.some(tag => queryLower.includes(tag))
-    );
     
-    if (matched && Math.random() > 0.3) {
+    // Score each KB article by relevance
+    const scoredArticles = mockKBArticles.map(kb => {
+      let score = 0;
+      const titleLower = kb.title.toLowerCase();
+      const contentLower = kb.content.toLowerCase();
+      const summaryLower = kb.summary.toLowerCase();
+      
+      // Direct keyword matches
+      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+      queryWords.forEach(word => {
+        if (titleLower.includes(word)) score += 3;
+        if (summaryLower.includes(word)) score += 2;
+        if (contentLower.includes(word)) score += 1;
+        if (kb.tags.some(tag => tag.includes(word))) score += 2;
+      });
+      
+      // Boost for specific keywords
+      if (queryLower.includes('voucher') && (titleLower.includes('voucher') || kb.tags.includes('voucher'))) score += 5;
+      if (queryLower.includes('backend') && (titleLower.includes('backend') || kb.tags.includes('backend'))) score += 5;
+      if (queryLower.includes('certification') && (titleLower.includes('certification') || kb.tags.includes('certification'))) score += 5;
+      if (queryLower.includes('error') && contentLower.includes('error')) score += 3;
+      if (queryLower.includes('invalid') && titleLower.includes('invalid')) score += 4;
+      if (queryLower.includes('reference') && titleLower.includes('reference')) score += 4;
+      
+      return { kb, score };
+    });
+    
+    // Find best match
+    const bestMatch = scoredArticles.reduce((a, b) => a.score > b.score ? a : b);
+    
+    // Return result if score is above threshold (confidence threshold)
+    if (bestMatch.score >= 3) {
+      // Calculate confidence based on score (normalize to 0.75-0.95 range)
+      const confidence = Math.min(0.95, 0.75 + (bestMatch.score / 20));
       const result: SearchResult = {
-        article: matched,
-        similarity: 0.75 + Math.random() * 0.2,
-        confidence: matched.confidence
+        article: bestMatch.kb,
+        similarity: confidence,
+        confidence: bestMatch.kb.confidence
       };
       setSearchResult(result);
       setIsSearching(false);
