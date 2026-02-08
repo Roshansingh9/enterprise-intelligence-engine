@@ -61,10 +61,21 @@ class SystemOrchestrator:
         else:
             logger.warning(f"Excel file not found: {excel_path}")
     
-    def build_indexes(self):
+    def build_indexes(self, force: bool = False):
+        """Build or load indexes. Loads from disk if available, unless force=True."""
         from src.retrieval import HybridRetriever
         self._retriever = HybridRetriever(self.config)
         
+        # Check if indexes already exist on disk
+        faiss_path = Path(self.config['paths']['faiss_index']) / "index.faiss"
+        bm25_path = Path(self.config['paths']['bm25_index']) / "bm25.pkl"
+        
+        if faiss_path.exists() and bm25_path.exists() and not force:
+            logger.info("Loading existing indexes from disk (use --rebuild to force rebuild)")
+            # Retriever will lazy-load from disk when needed
+            return
+        
+        # Build new indexes
         articles = self._db.get_all('knowledge_articles')
         if articles:
             docs = [{'id': a['kb_article_id'], 'content': a['content'], 
