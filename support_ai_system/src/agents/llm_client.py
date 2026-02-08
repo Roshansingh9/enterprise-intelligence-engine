@@ -38,8 +38,9 @@ class LLMClient:
         self.model = ollama['model']
         self.fallback_models = ollama.get('fallback_models', [])
         self.timeout = ollama.get('timeout', 120)
-        self.max_retries = ollama.get('max_retries', 3)
-        self.retry_delay = ollama.get('retry_delay', 2)
+        self.max_retries = ollama.get('max_retries', 2)
+        self.retry_delay = ollama.get('retry_delay', 3)
+        self.num_ctx = ollama.get('num_ctx', 1024)  # Context window limit
         
         # Generation parameters
         gen_config = self.llm_config.get('generation', {})
@@ -113,6 +114,7 @@ class LLMClient:
                 'temperature': temperature or self.temperature,
                 'top_p': self.top_p,
                 'num_predict': max_tokens or self.max_tokens,
+                'num_ctx': self.num_ctx,  # Limit context for speed
             }
         }
         
@@ -181,6 +183,7 @@ class LLMClient:
                 'temperature': temperature or self.temperature,
                 'top_p': self.top_p,
                 'num_predict': max_tokens or self.max_tokens,
+                'num_ctx': self.num_ctx,  # Limit context for speed
             }
         }
         
