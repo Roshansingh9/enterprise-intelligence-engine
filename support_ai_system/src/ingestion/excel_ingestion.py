@@ -111,7 +111,7 @@ class ExcelIngestion:
                 df = self._add_metadata(df)
                 
                 sheets[sheet_name] = df
-                logger.info(f"  → {len(df)} rows loaded")
+                logger.info(f"  -> {len(df)} rows loaded")
                 
             except Exception as e:
                 logger.error(f"Error reading sheet {sheet_name}: {e}")
