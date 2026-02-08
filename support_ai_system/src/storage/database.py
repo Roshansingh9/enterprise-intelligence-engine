@@ -68,8 +68,8 @@ class DatabaseManager:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS conversations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ticket_number TEXT NOT NULL,
-                    conversation_id TEXT UNIQUE NOT NULL,
+                    ticket_number TEXT,
+                    conversation_id TEXT UNIQUE,
                     channel TEXT,
                     conversation_start TIMESTAMP,
                     conversation_end TIMESTAMP,
@@ -78,7 +78,7 @@ class DatabaseManager:
                     product TEXT,
                     category TEXT,
                     issue_summary TEXT,
-                    transcript TEXT NOT NULL,
+                    transcript TEXT,
                     sentiment TEXT,
                     generation_source_record TEXT,
                     version INTEGER DEFAULT 1,
@@ -93,16 +93,29 @@ class DatabaseManager:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS tickets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ticket_number TEXT UNIQUE NOT NULL,
+                    ticket_number TEXT UNIQUE,
                     status TEXT,
                     priority TEXT,
+                    tier TEXT,
                     created_date TIMESTAMP,
                     resolved_date TIMESTAMP,
                     resolution_summary TEXT,
                     contact_email TEXT,
                     contact_phone TEXT,
+                    contact_name TEXT,
+                    contact_role TEXT,
+                    account_name TEXT,
+                    property_name TEXT,
                     product TEXT,
+                    module TEXT,
                     category TEXT,
+                    case_type TEXT,
+                    subject TEXT,
+                    description TEXT,
+                    root_cause TEXT,
+                    tags TEXT,
+                    kb_article_id TEXT,
+                    script_id TEXT,
                     version INTEGER DEFAULT 1,
                     confidence REAL DEFAULT 1.0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -185,10 +198,17 @@ class DatabaseManager:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS questions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    question_id TEXT UNIQUE NOT NULL,
-                    question_text TEXT NOT NULL,
-                    answer_type TEXT NOT NULL,
-                    target_id TEXT NOT NULL,
+                    question_id TEXT UNIQUE,
+                    question_text TEXT,
+                    answer_type TEXT,
+                    target_id TEXT,
+                    target_title TEXT,
+                    source TEXT,
+                    product TEXT,
+                    category TEXT,
+                    module TEXT,
+                    difficulty TEXT,
+                    generation_source_record TEXT,
                     answer_text TEXT,
                     confidence REAL DEFAULT 1.0,
                     version INTEGER DEFAULT 1,
@@ -327,10 +347,16 @@ class DatabaseManager:
         
         # Column name mappings from Excel to database
         column_mappings = {
+            # Conversations sheet mappings
+            'transcript': 'transcript',
+            'conversation_start': 'conversation_start',
+            'conversation_end': 'conversation_end',
             # Tickets sheet mappings
             'created_at': 'created_date',
             'closed_at': 'resolved_date',
             'subject': 'issue_summary',
+            'description': 'resolution_summary',
+            'resolution': 'resolution_summary',
             # Scripts sheet mappings  
             'script_title': 'script_name',
             'script_text_sanitized': 'script_content',
@@ -338,6 +364,11 @@ class DatabaseManager:
             # Knowledge Articles mappings
             'body': 'content',
             'article_body': 'content',
+            # Questions sheet mappings
+            'question_text': 'question_text',
+            'answer_type': 'answer_type',
+            'target_id': 'target_id',
+            'target_title': 'answer_text',
             # Placeholder mappings
             'placeholder': 'placeholder_name',
             'meaning': 'description',
