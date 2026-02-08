@@ -30,42 +30,61 @@ class ExcelIngestion:
         self.validate_schema = config['ingestion'].get('validate_schema', True)
         self.skip_invalid = config['ingestion'].get('skip_invalid_rows', False)
         
-        # Expected sheets and their schemas
+        # Expected sheets and their schemas (flexible - many columns optional now)
         self.sheet_schemas = {
             'Conversations': {
-                'required': ['Ticket_Number', 'Conversation_ID', 'Channel', 'Transcript'],
-                'optional': ['Conversation_Start', 'Conversation_End', 'Customer_Role', 
-                           'Agent_Name', 'Product', 'Category', 'Issue_Summary', 'Sentiment']
+                'required': ['Ticket_Number', 'Conversation_ID', 'Transcript'],
+                'optional': ['Channel', 'Conversation_Start', 'Conversation_End', 'Customer_Role', 
+                           'Agent_Name', 'Product', 'Category', 'Issue_Summary', 'Sentiment',
+                           'Generation_Source_Record']
             },
             'Tickets': {
-                'required': ['Ticket_Number', 'Status'],
-                'optional': ['Priority', 'Created_Date', 'Resolved_Date', 'Resolution_Summary',
-                           'Contact_Email', 'Contact_Phone', 'Product', 'Category']
+                'required': ['Ticket_Number'],
+                'optional': ['Conversation_ID', 'Created_At', 'Closed_At', 'Status', 'Priority', 
+                           'Tier', 'Product', 'Module', 'Category', 'Case_Type', 'Account_Name',
+                           'Property_Name', 'Contact_Name', 'Contact_Role', 'Contact_Email',
+                           'Contact_Phone', 'Subject', 'Description', 'Resolution', 'Root_Cause',
+                           'Tags', 'KB_Article_ID', 'Script_ID', 'Created_Date', 'Resolved_Date',
+                           'Resolution_Summary']
             },
             'Scripts_Master': {
-                'required': ['Script_ID', 'Script_Name', 'Script_Content'],
-                'optional': ['Product', 'Category', 'Version', 'Status', 'Created_Date']
+                'required': ['Script_ID'],
+                'optional': ['Module', 'Description', 'Placeholders', 'Category', 'Subcategory',
+                           'Source', 'Script_Content', 'Script_Name', 'Product', 'Version', 'Status',
+                           'Created_Date']
             },
             'Knowledge_Articles': {
-                'required': ['KB_Article_ID', 'Title', 'Content'],
-                'optional': ['Summary', 'Product', 'Category', 'Version', 'Status',
-                           'Created_Date', 'Updated_Date', 'Author']
+                'required': ['KB_Article_ID', 'Title'],
+                'optional': ['Summary', 'Content', 'Article_Body', 'Product', 'Category', 
+                           'Version', 'Status', 'Created_Date', 'Updated_Date', 'Author', 'Module']
+            },
+            'Existing_Knowledge_Articles': {
+                'required': ['KB_Article_ID', 'Title'],
+                'optional': ['Summary', 'Content', 'Article_Body', 'Product', 'Category', 
+                           'Version', 'Status', 'Created_Date', 'Updated_Date', 'Author', 'Module']
             },
             'Questions': {
                 'required': ['Question_ID', 'Question_Text', 'Answer_Type', 'Target_ID'],
-                'optional': ['Answer_Text', 'Confidence', 'Created_Date']
+                'optional': ['Answer_Text', 'Confidence', 'Created_Date', 'Product', 'Category',
+                           'Module', 'Difficulty', 'Source_KB_Article_ID', 'Source_Script_ID']
             },
             'KB_Lineage': {
-                'required': ['Lineage_ID', 'KB_Article_ID', 'Source_Type', 'Source_ID'],
-                'optional': ['Confidence', 'Created_Date']
+                'required': ['KB_Article_ID', 'Source_Type', 'Source_ID'],
+                'optional': ['Lineage_ID', 'Confidence', 'Created_Date', 'Version', 'Status']
             },
             'Learning_Events': {
-                'required': ['Event_ID', 'Event_Type', 'KB_Article_ID'],
-                'optional': ['Status', 'Confidence', 'Created_Date', 'Approved_By']
+                'required': ['Event_ID'],
+                'optional': ['Event_Type', 'KB_Article_ID', 'Status', 'Confidence', 
+                           'Created_Date', 'Approved_By', 'Details', 'Source_Ticket_ID',
+                           'Source_Conversation_ID', 'New_KB_Article_ID']
             },
             'Placeholders': {
-                'required': ['Placeholder_ID', 'Placeholder_Name', 'Description'],
-                'optional': ['Default_Value', 'Script_ID']
+                'required': ['Placeholder_ID', 'Placeholder_Name'],
+                'optional': ['Description', 'Default_Value', 'Script_ID']
+            },
+            'Placeholder_Dictionary': {
+                'required': ['Placeholder_ID', 'Placeholder_Name'],
+                'optional': ['Description', 'Default_Value', 'Script_ID', 'Data_Type', 'Example']
             }
         }
     
