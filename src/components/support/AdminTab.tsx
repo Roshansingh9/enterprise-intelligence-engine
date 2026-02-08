@@ -69,17 +69,16 @@ export function AdminTab({
   const handleResolve = async () => {
     if (!selectedTicket || !resolution.trim()) return;
     await onResolveTicket(selectedTicket.id, resolution);
-    setSelectedTicket(prev => prev ? { ...prev, status: 'resolved', resolution } : null);
-  };
-
-  const handleGenerateKB = async () => {
-    if (!selectedTicket) return;
+    
+    // Automatically generate KB draft after resolution
     setIsGenerating(true);
-    await onGenerateKB(selectedTicket.id);
-    setSelectedTicket(prev => {
-      const updated = tickets.find(t => t.id === prev?.id);
-      return updated || prev;
-    });
+    const draft = await onGenerateKB(selectedTicket.id);
+    setSelectedTicket(prev => prev ? { 
+      ...prev, 
+      status: 'resolved', 
+      resolution,
+      kbDraft: draft
+    } : null);
     setIsGenerating(false);
   };
 
@@ -296,44 +295,37 @@ export function AdminTab({
                     onChange={(e) => setResolution(e.target.value)}
                     className="min-h-[120px]"
                   />
-                  <Button 
-                    onClick={handleResolve} 
-                    className="mt-3"
-                    disabled={!resolution.trim()}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Submit Resolution
-                  </Button>
+                  <div className="flex items-center gap-3 mt-3">
+                    <Button 
+                      onClick={handleResolve} 
+                      disabled={!resolution.trim() || isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Generating KB...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Submit Resolution
+                        </>
+                      )}
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      → KB article will be auto-generated for your review
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* Step 3: KB Generation */}
-              {selectedTicket.status === 'resolved' && !selectedTicket.kbDraft && (
-                <div>
-                  <h4 className="font-semibold mb-2 text-sm">Step 3: Generate KB Article</h4>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    AI will structure the resolution into a searchable knowledge base article.
-                  </p>
-                  <Button onClick={handleGenerateKB} disabled={isGenerating}>
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4" />
-                        Generate KB Draft
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {/* Step 4: KB Review & Approval */}
+              {/* Step 3: KB Review & Approval (Auto-generated) */}
               {selectedTicket.kbDraft && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-sm">Step 4: Review KB Draft</h4>
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-500" />
+                    Step 3: Review Auto-Generated KB Draft
+                  </h4>
                   
                   {/* Confidence Check */}
                   {selectedTicket.kbDraft.confidence && (
