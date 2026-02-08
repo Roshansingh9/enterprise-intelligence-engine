@@ -16,6 +16,54 @@ function extractTags(issueText: string): string[] {
   return found.length > 0 ? found.slice(0, 4) : ['auto-generated'];
 }
 
+// Generate AI preliminary analysis for a ticket
+function generatePreliminaryAnalysis(issueText: string, kbArticles: KBArticle[]): string {
+  const textLower = issueText.toLowerCase();
+  
+  // Find similar KB articles for context
+  const relatedKBs = kbArticles.filter(kb => {
+    const kbText = `${kb.title} ${kb.summary} ${kb.tags.join(' ')}`.toLowerCase();
+    return kb.tags.some(tag => textLower.includes(tag)) || 
+           textLower.split(/\s+/).some(word => word.length > 4 && kbText.includes(word));
+  }).slice(0, 2);
+
+  // Identify key issue indicators
+  const indicators: string[] = [];
+  if (textLower.includes('error')) indicators.push('error condition detected');
+  if (textLower.includes('cannot') || textLower.includes("can't")) indicators.push('functionality blocked');
+  if (textLower.includes('mismatch') || textLower.includes('invalid')) indicators.push('data validation issue');
+  if (textLower.includes('timeout') || textLower.includes('slow')) indicators.push('performance issue');
+  if (textLower.includes('login') || textLower.includes('auth')) indicators.push('authentication related');
+  if (textLower.includes('payment') || textLower.includes('transaction')) indicators.push('payment processing');
+  if (textLower.includes('voucher') || textLower.includes('hap')) indicators.push('voucher/HAP workflow');
+  if (textLower.includes('certification') || textLower.includes('recertification')) indicators.push('certification process');
+
+  // Build analysis
+  let analysis = '';
+  
+  if (indicators.length > 0) {
+    analysis += `Issue indicators: ${indicators.join(', ')}. `;
+  }
+  
+  if (relatedKBs.length > 0) {
+    analysis += `Potentially related to existing KB: ${relatedKBs.map(kb => kb.id).join(', ')}. `;
+    analysis += `Suggested category: ${relatedKBs[0].tags[0] || 'general'}. `;
+  } else {
+    analysis += 'No directly matching KB found - this appears to be a new issue type. ';
+  }
+  
+  // Add suggested action
+  if (textLower.includes('reference') && textLower.includes('mismatch')) {
+    analysis += 'Recommended: Check backend data synchronization and reference validation.';
+  } else if (textLower.includes('recertification')) {
+    analysis += 'Recommended: Verify certification workflow state and data integrity.';
+  } else {
+    analysis += 'Recommended: Gather additional context from the user before resolution.';
+  }
+  
+  return analysis;
+}
+
 // Mock data for demonstration - expanded KB library
 const mockKBArticles: KBArticle[] = [
   {
@@ -440,11 +488,14 @@ export function useSupportSystem() {
   }, [kbArticles]);
 
   const raiseTicket = useCallback(async (issueText: string): Promise<Ticket> => {
+    // Generate AI preliminary analysis based on issue text
+    const aiAnalysis = generatePreliminaryAnalysis(issueText, kbArticles);
+    
     const newTicket: Ticket = {
       id: `TKT-2024-${Date.now().toString().slice(-4)}`,
       issueText,
       status: 'open',
-      aiAnalysis: 'Awaiting preliminary analysis...',
+      aiAnalysis,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -453,7 +504,7 @@ export function useSupportSystem() {
     setMetrics(prev => ({ ...prev, pendingTickets: prev.pendingTickets + 1 }));
     
     return newTicket;
-  }, []);
+  }, [kbArticles]);
 
   const submitFeedback = useCallback(async (articleId: string, helpful: boolean) => {
     console.log(`Feedback for ${articleId}: ${helpful ? 'helpful' : 'not helpful'}`);
