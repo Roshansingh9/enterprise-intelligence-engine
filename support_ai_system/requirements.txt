@@ -1,0 +1,54 @@
+# Support AI System - Requirements
+# Python 3.10+
+
+# Core
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+click>=8.1.7
+
+# Data Processing
+pandas>=2.2.0
+openpyxl>=3.1.2
+numpy>=1.26.0
+
+# SQLite (built-in, no package needed)
+
+# Embeddings & Retrieval
+sentence-transformers>=2.3.0
+faiss-cpu>=1.7.4
+rank-bm25>=0.2.2
+
+# LLM Integration
+requests>=2.31.0
+httpx>=0.26.0
+
+# Text Processing
+nltk>=3.8.1
+beautifulsoup4>=4.12.3
+lxml>=5.1.0
+
+# Logging & Progress
+rich>=13.7.0
+tqdm>=4.66.1
+
+# Serialization
+cloudpickle>=3.0.0
+joblib>=1.3.2
+
+# Evaluation & Metrics
+scikit-learn>=1.4.0
+
+# Async Support
+aiohttp>=3.9.1
+asyncio-throttle>=1.0.2
+
+# PII Detection
+presidio-analyzer>=2.2.0
+presidio-anonymizer>=2.2.0
+
+# Date handling
+python-dateutil>=2.8.2
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
