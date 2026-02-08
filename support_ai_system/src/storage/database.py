@@ -425,7 +425,15 @@ class DatabaseManager:
             # Insert rows
             rows_before = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             
-            for _, row in df_filtered.iterrows():
+            # Log if table already has data
+            if rows_before > 0:
+                logger.info(f"[{table}] Table already has {rows_before} rows, new rows will be skipped if duplicates")
+            
+            inserted_count = 0
+            skipped_count = 0
+            error_count = 0
+            
+            for idx, row in df_filtered.iterrows():
                 values = []
                 for col in matching_cols:
                     val = row[col]
@@ -447,12 +455,26 @@ class DatabaseManager:
                         values.append(val)
                 try:
                     cursor.execute(query, values)
+                    if cursor.rowcount > 0:
+                        inserted_count += 1
+                    else:
+                        skipped_count += 1
                 except sqlite3.IntegrityError as e:
                     if conflict_action == 'ABORT':
                         raise
-                    logger.debug(f"Skipping duplicate row: {e}")
+                    skipped_count += 1
+                except Exception as e:
+                    error_count += 1
+                    if error_count <= 3:  # Only log first few errors
+                        logger.warning(f"[{table}] Error inserting row {idx}: {e}")
             
+            conn.commit()
             rows_after = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            
+            if skipped_count > 0:
+                logger.info(f"[{table}] Skipped {skipped_count} duplicate/existing rows")
+            if error_count > 0:
+                logger.warning(f"[{table}] {error_count} rows had errors")
             
         return rows_after - rows_before
     
