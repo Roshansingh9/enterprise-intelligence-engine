@@ -93,10 +93,12 @@ class SystemOrchestrator:
             return json.loads(cp_file.read_text())
         return None
     
-    def save_checkpoint(self):
+    def save_checkpoint(self, data: Dict = None):
         cp_file = Path(self.config['learning']['checkpoint_file'])
         cp_file.parent.mkdir(parents=True, exist_ok=True)
-        cp_file.write_text(json.dumps({'timestamp': datetime.now().isoformat()}))
+        checkpoint = data or {}
+        checkpoint['timestamp'] = datetime.now().isoformat()
+        cp_file.write_text(json.dumps(checkpoint, indent=2))
     
     def evaluate_retrieval(self) -> Dict:
         """Evaluate retrieval performance using Questions table as ground truth."""
