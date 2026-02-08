@@ -69,7 +69,7 @@ def _validate_config(config: Dict[str, Any]) -> None:
             raise ValueError(f"Missing required configuration section: {section}")
     
     # Validate LLM configuration
-    if config['llm']['provider'] not in ['ollama', 'openai']:
+    if config['llm']['provider'] not in ['ollama', 'openai', 'groq']:
         raise ValueError(f"Invalid LLM provider: {config['llm']['provider']}")
     
     # Validate learning configuration
