@@ -344,7 +344,17 @@ class DatabaseManager:
             rows_before = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             
             for _, row in df_filtered.iterrows():
-                values = [row[col] if pd.notna(row[col]) else None for col in matching_cols]
+                values = []
+                for col in matching_cols:
+                    val = row[col]
+                    if pd.isna(val):
+                        values.append(None)
+                    elif hasattr(val, 'isoformat'):  # Handle Timestamp/datetime
+                        values.append(val.isoformat())
+                    elif isinstance(val, (list, dict)):
+                        values.append(str(val))
+                    else:
+                        values.append(val)
                 try:
                     cursor.execute(query, values)
                 except sqlite3.IntegrityError as e:

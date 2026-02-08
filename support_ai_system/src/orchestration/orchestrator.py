@@ -42,10 +42,12 @@ class SystemOrchestrator:
                 'scripts_master': 'scripts',
                 'scripts': 'scripts',
                 'knowledge_articles': 'knowledge_articles',
+                'existing_knowledge_articles': 'knowledge_articles',
                 'questions': 'questions',
                 'kb_lineage': 'kb_lineage',
                 'learning_events': 'learning_events',
-                'placeholders': 'placeholders'
+                'placeholders': 'placeholders',
+                'placeholder_dictionary': 'placeholders'
             }
             
             for sheet_name, df in sheets.items():
