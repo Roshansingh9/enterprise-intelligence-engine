@@ -325,14 +325,17 @@ class DatabaseManager:
         df = df.copy()
         df.columns = [col.lower().replace(' ', '_') for col in df.columns]
         
+        # Remove duplicate columns (keep first occurrence)
+        df = df.loc[:, ~df.columns.duplicated()]
+        
         with self.get_connection() as conn:
             # Get existing columns
             cursor = conn.cursor()
             cursor.execute(f"PRAGMA table_info({table})")
             existing_cols = {row[1] for row in cursor.fetchall()}
             
-            # Filter to matching columns
-            matching_cols = [col for col in df.columns if col in existing_cols]
+            # Filter to matching columns (ensure unique)
+            matching_cols = list(dict.fromkeys([col for col in df.columns if col in existing_cols]))
             df_filtered = df[matching_cols]
             
             # Build insert query
@@ -347,13 +350,15 @@ class DatabaseManager:
                 values = []
                 for col in matching_cols:
                     val = row[col]
-                    # Safely check for NaN/None - handle scalar and Series
-                    try:
-                        is_null = val is None or (isinstance(val, float) and pd.isna(val)) or (hasattr(val, 'isna') and val.isna().any())
-                    except (TypeError, ValueError):
-                        is_null = val is None
                     
-                    if is_null:
+                    # If val is a Series (duplicate cols), take first value
+                    if isinstance(val, pd.Series):
+                        val = val.iloc[0] if len(val) > 0 else None
+                    
+                    # Check for null values
+                    if val is None:
+                        values.append(None)
+                    elif isinstance(val, float) and pd.isna(val):
                         values.append(None)
                     elif hasattr(val, 'isoformat'):  # Handle Timestamp/datetime
                         values.append(val.isoformat())
