@@ -17,30 +17,36 @@ system:
 # LLM CONFIGURATION
 # -----------------------------------------------------------------------------
 llm:
-  provider: "ollama"  # ollama, openai (fallback)
+  provider: "groq"  # groq (primary), ollama (fallback)
   
+  groq:
+    endpoint: "https://api.groq.com/openai/v1/chat/completions"
+    model: "llama-3.1-8b-instant"  # Fast and capable
+    api_keys:
+      - "YOUR_GROQ_API_KEY_1"  # Replace with your keys
+      - "YOUR_GROQ_API_KEY_2"
+      - "YOUR_GROQ_API_KEY_3"
+    timeout: 30  # Groq is very fast
+    max_retries: 2
+    retry_delay: 1
+  
+  # Fallback provider (if Groq unavailable/rate-limited)
   ollama:
     endpoint: "http://localhost:11434"
-    model: "tinyllama"  # Fastest model (~637MB) for quick training
+    model: "tinyllama"
     fallback_models:
-      - "phi3"  # Fallback if tinyllama unavailable
+      - "phi3"
       - "gemma:2b"
-    timeout: 120  # 2 minutes (tinyllama is fast)
+    timeout: 120
     max_retries: 2
     retry_delay: 3
-    num_ctx: 1024  # Limit context window for speed
+    num_ctx: 1024
     
-  # Fallback provider (if Ollama unavailable)
-  openai:
-    endpoint: "https://api.openai.com/v1"
-    model: "gpt-3.5-turbo"
-    api_key_env: "OPENAI_API_KEY"
-    
-  # Generation parameters (optimized for speed)
+  # Generation parameters
   generation:
-    temperature: 0.3  # Lower = faster, more consistent
+    temperature: 0.3
     top_p: 0.9
-    max_tokens: 512  # Reduced for faster generation
+    max_tokens: 512
     stop_sequences: []
 
 # -----------------------------------------------------------------------------
