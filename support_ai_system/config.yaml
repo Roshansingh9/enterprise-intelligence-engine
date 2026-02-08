@@ -27,6 +27,12 @@ llm:
       - "YOUR_GROQ_API_KEY_2"
       - "YOUR_GROQ_API_KEY_3"
     timeout: 30  # Groq is very fast
+
+    # Rate-limit protection (prevents 429 storms; tune to your plan)
+    # Example: if you can do ~30 requests/min per key, set min_interval_seconds ~ 2.0
+    min_interval_seconds: 1.0
+    default_cooldown_seconds: 15.0
+
     max_retries: 2
     retry_delay: 1
   
