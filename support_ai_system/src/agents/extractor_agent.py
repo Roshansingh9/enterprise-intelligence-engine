@@ -90,7 +90,9 @@ class ExtractorAgent(BaseAgent):
     def _build_prompt(self, text: str, data_type: str) -> str:
         """Build extraction prompt - optimized for speed."""
         
-        if self.prompt_template:
+        # Only use template if it actually includes the needed placeholders.
+        # (Default init creates a stub file like "# Extractor Prompt Template" which would break extraction.)
+        if self.prompt_template and ('{text}' in self.prompt_template):
             return self.prompt_template.format(text=text, type=data_type)
         
         # Truncate text to reduce processing time
