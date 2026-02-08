@@ -331,17 +331,37 @@ class DatabaseManager:
             'created_at': 'created_date',
             'closed_at': 'resolved_date',
             'subject': 'issue_summary',
-            'description': 'resolution_summary',
             # Scripts sheet mappings  
-            'module': 'script_name',
-            'description': 'script_content',
+            'script_title': 'script_name',
+            'script_text_sanitized': 'script_content',
+            'script_purpose': 'description',
             # Knowledge Articles mappings
+            'body': 'content',
             'article_body': 'content',
-            # KB Lineage auto-generate lineage_id if missing
+            # Placeholder mappings
+            'placeholder': 'placeholder_name',
+            'meaning': 'description',
+            'example': 'default_value',
+            # Learning Events mappings
+            'detected_gap': 'details',
+            'final_status': 'status',
+            'proposed_kb_article_id': 'kb_article_id',
+            'draft_summary': 'event_type',
+            'event_timestamp': 'created_date',
+            'reviewer_role': 'approved_by',
         }
         
         # Apply column mappings
         df = df.rename(columns=column_mappings)
+        
+        # Auto-generate missing required IDs
+        if table == 'kb_lineage' and 'lineage_id' not in df.columns:
+            df['lineage_id'] = [f"LIN-{i:06d}" for i in range(len(df))]
+        if table == 'placeholders':
+            if 'placeholder_id' not in df.columns:
+                df['placeholder_id'] = [f"PH-{i:04d}" for i in range(len(df))]
+            if 'placeholder_name' not in df.columns and 'placeholder' in df.columns:
+                df['placeholder_name'] = df['placeholder']
         
         # Remove duplicate columns (keep first occurrence)
         df = df.loc[:, ~df.columns.duplicated()]
