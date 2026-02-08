@@ -25,9 +25,9 @@ llm:
     fallback_models:
       - "tinyllama"  # Even smaller (~637MB)
       - "gemma:2b"
-    timeout: 120
-    max_retries: 3
-    retry_delay: 2
+    timeout: 300  # 5 minutes for large prompts
+    max_retries: 2
+    retry_delay: 5
     
   # Fallback provider (if Ollama unavailable)
   openai:

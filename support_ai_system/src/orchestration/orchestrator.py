@@ -368,6 +368,10 @@ class SystemOrchestrator:
     async def resume_training(self, checkpoint: Dict, progress_callback: Callable = None):
         """Resume training from checkpoint."""
         logger.info("Resuming training from checkpoint")
+        
+        # Ensure database and retriever are loaded
+        self.load_state()
+        
         start_round = checkpoint.get('round', 0)
         num_rounds = self.config['learning']['num_rounds']
         
