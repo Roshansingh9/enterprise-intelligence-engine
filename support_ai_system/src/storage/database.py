@@ -478,6 +478,60 @@ class DatabaseManager:
             
         return rows_after - rows_before
     
+    def insert(self, table: str, data: Dict[str, Any]) -> bool:
+        """
+        Insert a single row into a table.
+        
+        Args:
+            table: Table name
+            data: Dict of column->value pairs
+            
+        Returns:
+            True if inserted successfully
+        """
+        if not data:
+            return False
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get existing columns
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing_cols = {row[1] for row in cursor.fetchall()}
+            
+            # Filter to valid columns
+            valid_data = {k: v for k, v in data.items() if k in existing_cols}
+            
+            if not valid_data:
+                logger.warning(f"[{table}] No valid columns in insert data")
+                return False
+            
+            cols = ', '.join(valid_data.keys())
+            placeholders = ', '.join(['?' for _ in valid_data])
+            values = []
+            
+            for val in valid_data.values():
+                if val is None:
+                    values.append(None)
+                elif hasattr(val, 'isoformat'):
+                    values.append(val.isoformat())
+                elif isinstance(val, (list, dict)):
+                    import json
+                    values.append(json.dumps(val))
+                else:
+                    values.append(val)
+            
+            try:
+                cursor.execute(
+                    f"INSERT OR IGNORE INTO {table} ({cols}) VALUES ({placeholders})",
+                    values
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception as e:
+                logger.error(f"[{table}] Insert failed: {e}")
+                return False
+    
     def get_all(self, table: str, where: Optional[str] = None, 
                 params: Optional[Tuple] = None, limit: Optional[int] = None) -> List[Dict]:
         """Get all rows from a table."""

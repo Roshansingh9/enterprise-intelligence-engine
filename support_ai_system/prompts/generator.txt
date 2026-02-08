@@ -1,1 +1,21 @@
-# Generator Prompt Template
+# KB Article Generator Prompt
+
+Create a KB article from these facts. Return JSON only.
+
+Topic: {topic}
+Product: {product}
+Category: {category}
+
+Facts:
+{facts}
+
+{examples}
+
+Output format:
+{{"title":"Short descriptive title","summary":"1-2 sentence summary","content":"Problem:\\n[issue]\\n\\nSolution:\\n[fix]\\n\\nSteps:\\n1. [step]\\n2. [step]","tags":["tag1","tag2"],"confidence":0.8}}
+
+Rules:
+- Title: Max 60 chars, describe the issue
+- Content: Problem + Solution + Steps format
+- Tags: 2-4 relevant keywords
+- Confidence: 0.0-1.0 based on fact quality
