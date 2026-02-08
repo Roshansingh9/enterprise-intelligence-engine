@@ -347,7 +347,13 @@ class DatabaseManager:
                 values = []
                 for col in matching_cols:
                     val = row[col]
-                    if pd.isna(val):
+                    # Safely check for NaN/None - handle scalar and Series
+                    try:
+                        is_null = val is None or (isinstance(val, float) and pd.isna(val)) or (hasattr(val, 'isna') and val.isna().any())
+                    except (TypeError, ValueError):
+                        is_null = val is None
+                    
+                    if is_null:
                         values.append(None)
                     elif hasattr(val, 'isoformat'):  # Handle Timestamp/datetime
                         values.append(val.isoformat())
