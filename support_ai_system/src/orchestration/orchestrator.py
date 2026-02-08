@@ -230,30 +230,153 @@ class SystemOrchestrator:
         logger.info(f"Baseline metrics saved to {baseline_file}")
     
     async def run_training_pipeline(self, num_rounds: int, progress_callback: Callable = None):
-        """Run the training pipeline."""
+        """Run the training pipeline - processes conversations and generates KB articles."""
+        from src.agents.extractor_agent import ExtractorAgent
+        from src.agents.kb_generator_agent import KBGeneratorAgent
+        from src.agents.learning_agent import LearningAgent
+        
         logger.info(f"Starting training for {num_rounds} rounds")
+        
+        # Initialize agents
+        extractor = ExtractorAgent(self.config)
+        generator = KBGeneratorAgent(self.config)
+        learning_agent = LearningAgent(self.config)
+        
+        # Get unprocessed conversations
+        conversations = self._db.get_all('conversations')
+        if not conversations:
+            logger.warning("No conversations found for training")
+            return
+        
+        # Calculate batch size per round
+        batch_size = self.config['learning'].get('buffer_size', 500)
+        train_ratio = self.config['learning'].get('train_ratio', 0.7)
+        train_count = int(len(conversations) * train_ratio)
+        per_round = max(1, train_count // num_rounds)
+        
+        total_processed = 0
+        total_articles = 0
         
         for round_num in range(num_rounds):
             if progress_callback:
                 progress_callback(round=round_num, total_rounds=num_rounds)
             
-            # Training logic placeholder - would process conversations and generate KB articles
-            logger.info(f"Training round {round_num + 1}/{num_rounds}")
+            # Get batch for this round
+            start_idx = round_num * per_round
+            end_idx = min(start_idx + per_round, train_count)
+            batch = conversations[start_idx:end_idx]
+            
+            if not batch:
+                logger.info(f"Round {round_num + 1}: No more conversations to process")
+                continue
+            
+            logger.info(f"Training round {round_num + 1}/{num_rounds} - Processing {len(batch)} conversations")
+            
+            round_articles = 0
+            for conv in batch:
+                try:
+                    # Extract facts from conversation transcript
+                    transcript = conv.get('transcript', '') or conv.get('full_text', '')
+                    if not transcript or len(transcript) < 50:
+                        continue
+                    
+                    # Check if already processed (look for existing KB article)
+                    conv_id = conv.get('conversation_id', '')
+                    existing = self._db.get_all('kb_lineage', 
+                        where=f"source_type = 'conversation' AND source_id = '{conv_id}'")
+                    if existing:
+                        continue
+                    
+                    # Extract facts
+                    facts = extractor.extract_from_conversation(transcript, {
+                        'ticket_number': conv.get('ticket_number', ''),
+                        'product': conv.get('product', ''),
+                        'category': conv.get('category', '')
+                    })
+                    
+                    if not facts:
+                        continue
+                    
+                    # Generate KB article
+                    article = generator.generate_from_conversation(
+                        transcript=transcript,
+                        facts=facts,
+                        metadata={
+                            'conversation_id': conv_id,
+                            'ticket_number': conv.get('ticket_number', ''),
+                            'product': conv.get('product', ''),
+                            'category': conv.get('category', ''),
+                            'issue_summary': conv.get('issue_summary', '')
+                        }
+                    )
+                    
+                    if article and article.content:
+                        # Save article to database
+                        self._db.insert('knowledge_articles', {
+                            'kb_article_id': article.article_id,
+                            'title': article.title,
+                            'summary': article.summary,
+                            'content': article.content,
+                            'product': article.product,
+                            'category': article.category,
+                            'confidence': article.confidence,
+                            'version': 1,
+                            'status': 'draft'
+                        })
+                        
+                        # Save lineage
+                        self._db.insert('kb_lineage', {
+                            'kb_article_id': article.article_id,
+                            'source_type': 'conversation',
+                            'source_id': conv_id,
+                            'version': 1,
+                            'status': 'active'
+                        })
+                        
+                        round_articles += 1
+                        total_articles += 1
+                        
+                        # Add high-quality examples for learning
+                        if article.confidence >= 0.85:
+                            generator.add_example(article)
+                    
+                    total_processed += 1
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing conversation: {e}")
+                    continue
+            
+            logger.info(f"Round {round_num + 1}: Generated {round_articles} KB articles")
+            
+            # Trigger learning after each round
+            if round_articles > 0:
+                learning_agent.process({
+                    'trigger': 'evaluation',
+                    'metrics': self.evaluate_retrieval()
+                })
+            
+            # Save checkpoint after each round
+            self.save_checkpoint({'round': round_num + 1, 'processed': total_processed})
         
-        self.save_checkpoint()
+        logger.info(f"Training complete: {total_processed} conversations processed, {total_articles} articles generated")
+        
+        # Rebuild indexes with new articles
+        if total_articles > 0:
+            logger.info("Rebuilding indexes with new articles...")
+            self.build_indexes()
         
     async def resume_training(self, checkpoint: Dict, progress_callback: Callable = None):
         """Resume training from checkpoint."""
-        logger.info("Resuming training")
+        logger.info("Resuming training from checkpoint")
         start_round = checkpoint.get('round', 0)
         num_rounds = self.config['learning']['num_rounds']
         
-        for round_num in range(start_round, num_rounds):
-            if progress_callback:
-                progress_callback(round=round_num, total_rounds=num_rounds)
-            logger.info(f"Training round {round_num + 1}/{num_rounds}")
-        
-        self.save_checkpoint()
+        # Continue with remaining rounds
+        remaining = num_rounds - start_round
+        if remaining > 0:
+            await self.run_training_pipeline(remaining, progress_callback)
+        else:
+            logger.info("Training already complete")
     
     def run_full_evaluation(self, full: bool = False) -> Dict:
         """Run comprehensive evaluation."""
