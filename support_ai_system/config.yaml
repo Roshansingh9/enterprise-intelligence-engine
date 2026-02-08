@@ -21,13 +21,14 @@ llm:
   
   ollama:
     endpoint: "http://localhost:11434"
-    model: "phi3"  # Smaller model (~2.3GB) for limited memory
+    model: "tinyllama"  # Fastest model (~637MB) for quick training
     fallback_models:
-      - "tinyllama"  # Even smaller (~637MB)
+      - "phi3"  # Fallback if tinyllama unavailable
       - "gemma:2b"
-    timeout: 300  # 5 minutes for large prompts
+    timeout: 120  # 2 minutes (tinyllama is fast)
     max_retries: 2
-    retry_delay: 5
+    retry_delay: 3
+    num_ctx: 1024  # Limit context window for speed
     
   # Fallback provider (if Ollama unavailable)
   openai:
@@ -35,11 +36,11 @@ llm:
     model: "gpt-3.5-turbo"
     api_key_env: "OPENAI_API_KEY"
     
-  # Generation parameters
+  # Generation parameters (optimized for speed)
   generation:
-    temperature: 0.7
+    temperature: 0.3  # Lower = faster, more consistent
     top_p: 0.9
-    max_tokens: 2048
+    max_tokens: 512  # Reduced for faster generation
     stop_sequences: []
 
 # -----------------------------------------------------------------------------
