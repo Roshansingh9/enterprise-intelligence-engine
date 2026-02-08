@@ -325,6 +325,24 @@ class DatabaseManager:
         df = df.copy()
         df.columns = [col.lower().replace(' ', '_') for col in df.columns]
         
+        # Column name mappings from Excel to database
+        column_mappings = {
+            # Tickets sheet mappings
+            'created_at': 'created_date',
+            'closed_at': 'resolved_date',
+            'subject': 'issue_summary',
+            'description': 'resolution_summary',
+            # Scripts sheet mappings  
+            'module': 'script_name',
+            'description': 'script_content',
+            # Knowledge Articles mappings
+            'article_body': 'content',
+            # KB Lineage auto-generate lineage_id if missing
+        }
+        
+        # Apply column mappings
+        df = df.rename(columns=column_mappings)
+        
         # Remove duplicate columns (keep first occurrence)
         df = df.loc[:, ~df.columns.duplicated()]
         
