@@ -286,30 +286,43 @@ class SystemOrchestrator:
             logger.info(f"Training round {round_num + 1}/{num_rounds} - Processing {len(batch)} conversations")
             
             round_articles = 0
+            skip_stats = {
+                'too_short': 0,
+                'already_processed': 0,
+                'no_facts': 0,
+                'no_article': 0,
+                'exceptions': 0
+            }
+
             for conv in batch:
                 try:
                     # Extract facts from conversation transcript
                     transcript = conv.get('transcript', '') or conv.get('full_text', '')
                     if not transcript or len(transcript) < 50:
+                        skip_stats['too_short'] += 1
                         continue
-                    
+
                     # Check if already processed (look for existing KB article)
                     conv_id = conv.get('conversation_id', '')
-                    existing = self._db.get_all('kb_lineage', 
-                        where=f"source_type = 'conversation' AND source_id = '{conv_id}'")
+                    existing = self._db.get_all(
+                        'kb_lineage',
+                        where=f"source_type = 'conversation' AND source_id = '{conv_id}'"
+                    )
                     if existing:
+                        skip_stats['already_processed'] += 1
                         continue
-                    
+
                     # Extract facts
                     facts = extractor.extract_from_conversation(transcript, {
                         'ticket_number': conv.get('ticket_number', ''),
                         'product': conv.get('product', ''),
                         'category': conv.get('category', '')
                     })
-                    
+
                     if not facts:
+                        skip_stats['no_facts'] += 1
                         continue
-                    
+
                     # Generate KB article
                     article = generator.generate_from_conversation(
                         transcript=transcript,
@@ -322,52 +335,60 @@ class SystemOrchestrator:
                             'issue_summary': conv.get('issue_summary', '')
                         }
                     )
-                    
-                    if article and article.content:
-                        # Save article to database
-                        self._db.insert('knowledge_articles', {
-                            'kb_article_id': article.article_id,
-                            'title': article.title,
-                            'summary': article.summary,
-                            'content': article.content,
-                            'product': article.product,
-                            'category': article.category,
-                            'confidence': article.confidence,
-                            'version': 1,
-                            'status': 'draft'
-                        })
-                        
-                        # Save lineage
-                        self._db.insert('kb_lineage', {
-                            'kb_article_id': article.article_id,
-                            'source_type': 'conversation',
-                            'source_id': conv_id,
-                            'version': 1,
-                            'status': 'active'
-                        })
-                        
-                        round_articles += 1
-                        total_articles += 1
-                        
-                        # Add high-quality examples for learning
-                        if article.confidence >= 0.85:
-                            generator.add_example(article)
-                    
+
+                    if not article or not getattr(article, 'content', None):
+                        skip_stats['no_article'] += 1
+                        continue
+
+                    # Save article to database
+                    self._db.insert('knowledge_articles', {
+                        'kb_article_id': article.article_id,
+                        'title': article.title,
+                        'summary': article.summary,
+                        'content': article.content,
+                        'product': article.product,
+                        'category': article.category,
+                        'confidence': article.confidence,
+                        'version': 1,
+                        'status': 'draft'
+                    })
+
+                    # Save lineage
+                    self._db.insert('kb_lineage', {
+                        'kb_article_id': article.article_id,
+                        'source_type': 'conversation',
+                        'source_id': conv_id,
+                        'version': 1,
+                        'status': 'active'
+                    })
+
+                    round_articles += 1
+                    total_articles += 1
+
+                    # Add high-quality examples for learning
+                    if article.confidence >= 0.85:
+                        generator.add_example(article)
+
                     total_processed += 1
-                    
+
                 except Exception as e:
+                    skip_stats['exceptions'] += 1
                     logger.warning(f"Error processing conversation: {e}")
                     continue
-            
-            logger.info(f"Round {round_num + 1}: Generated {round_articles} KB articles")
-            
+
+            logger.info(
+                f"Round {round_num + 1}: Generated {round_articles} KB articles | "
+                f"skips: short={skip_stats['too_short']}, processed={skip_stats['already_processed']}, "
+                f"no_facts={skip_stats['no_facts']}, no_article={skip_stats['no_article']}, errors={skip_stats['exceptions']}"
+            )
+
             # Trigger learning after each round
             if round_articles > 0:
                 learning_agent.process({
                     'trigger': 'evaluation',
                     'metrics': self.evaluate_retrieval()
                 })
-            
+
             # Save checkpoint after each round
             self.save_checkpoint({'round': round_num + 1, 'processed': total_processed})
         
