@@ -21,11 +21,10 @@ llm:
   
   ollama:
     endpoint: "http://localhost:11434"
-    model: "llama3"
+    model: "phi3"  # Smaller model (~2.3GB) for limited memory
     fallback_models:
-      - "llama3.1"
-      - "mistral"
-      - "phi3"
+      - "tinyllama"  # Even smaller (~637MB)
+      - "gemma:2b"
     timeout: 120
     max_retries: 3
     retry_delay: 2
