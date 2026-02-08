@@ -10,6 +10,10 @@ const Index = () => {
     searchResult,
     tickets,
     metrics,
+    trainingState,
+    checkpoints,
+    shouldTriggerTraining,
+    trainingSteps,
     searchKnowledge,
     raiseTicket,
     submitFeedback,
@@ -17,7 +21,10 @@ const Index = () => {
     generateKBDraft,
     approveKB,
     rejectKB,
-    setSearchResult
+    setSearchResult,
+    runTrainingCycle,
+    resumeTraining,
+    pauseTraining
   } = useSupportSystem();
 
   return (
@@ -69,10 +76,17 @@ const Index = () => {
             <AdminTab
               tickets={tickets}
               metrics={metrics}
+              trainingState={trainingState}
+              checkpoints={checkpoints}
+              shouldTriggerTraining={shouldTriggerTraining}
+              trainingSteps={trainingSteps}
               onResolveTicket={resolveTicket}
               onGenerateKB={generateKBDraft}
               onApproveKB={approveKB}
               onRejectKB={rejectKB}
+              onStartTraining={runTrainingCycle}
+              onPauseTraining={pauseTraining}
+              onResumeTraining={resumeTraining}
             />
           </TabsContent>
         </Tabs>

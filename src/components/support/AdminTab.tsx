@@ -8,8 +8,7 @@ import {
   TrendingUp,
   Database,
   AlertTriangle,
-  Loader2,
-  ChevronRight
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,24 +16,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import type { Ticket, SystemMetrics, KBArticle } from '@/types/support';
+import { TrainingStatusPanel } from './TrainingStatusPanel';
+import type { Ticket, SystemMetrics, KBArticle, TrainingState, TrainingStep, TrainingCheckpoint } from '@/types/support';
 
 interface AdminTabProps {
   tickets: Ticket[];
   metrics: SystemMetrics;
+  trainingState: TrainingState;
+  checkpoints: TrainingCheckpoint[];
+  shouldTriggerTraining: boolean;
+  trainingSteps: Record<TrainingStep, { label: string; description: string }>;
   onResolveTicket: (ticketId: string, resolution: string) => Promise<void>;
   onGenerateKB: (ticketId: string) => Promise<Partial<KBArticle>>;
   onApproveKB: (ticketId: string, editedDraft?: Partial<KBArticle>) => Promise<void>;
   onRejectKB: (ticketId: string, reason: string) => Promise<void>;
+  onStartTraining: () => void;
+  onPauseTraining: () => void;
+  onResumeTraining: () => void;
 }
 
 export function AdminTab({
   tickets,
   metrics,
+  trainingState,
+  checkpoints,
+  shouldTriggerTraining,
+  trainingSteps,
   onResolveTicket,
   onGenerateKB,
   onApproveKB,
-  onRejectKB
+  onRejectKB,
+  onStartTraining,
+  onPauseTraining,
+  onResumeTraining
 }: AdminTabProps) {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [resolution, setResolution] = useState('');
@@ -97,10 +111,36 @@ export function AdminTab({
     return { color: 'text-red-600', label: 'Human Validation Required', icon: XCircle };
   };
 
+  // Check if training is blocking approvals
+  const isApprovalBlocked = trainingState.status === 'in_progress';
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left Column - Metrics & Ticket List */}
-      <div className="space-y-6">
+    <div className="space-y-6">
+      {/* Training Status Panel - Always visible at top */}
+      <TrainingStatusPanel
+        trainingState={trainingState}
+        checkpoints={checkpoints}
+        shouldTriggerTraining={shouldTriggerTraining}
+        trainingSteps={trainingSteps}
+        onStartTraining={onStartTraining}
+        onPauseTraining={onPauseTraining}
+        onResumeTraining={onResumeTraining}
+      />
+
+      {/* Approval blocked warning */}
+      {isApprovalBlocked && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600" />
+          <div>
+            <span className="font-medium text-amber-800">Learning cycle in progress</span>
+            <p className="text-sm text-amber-700">KB approvals are temporarily paused until training completes.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column - Metrics & Ticket List */}
+        <div className="space-y-6">
         {/* Inline Metrics */}
         <Card>
           <CardHeader className="pb-3">
@@ -393,6 +433,7 @@ export function AdminTab({
           </Card>
         )}
       </div>
+    </div>
     </div>
   );
 }

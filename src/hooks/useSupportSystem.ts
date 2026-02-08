@@ -1,5 +1,8 @@
-import { useState, useCallback } from 'react';
-import type { SearchResult, Ticket, SystemMetrics, KBArticle } from '@/types/support';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import type { SearchResult, Ticket, SystemMetrics, KBArticle, TrainingState, TrainingStep, TrainingCheckpoint } from '@/types/support';
+
+// Auto-retraining constants
+const KB_TRAINING_THRESHOLD = 100;
 
 // Mock data for demonstration
 const mockKBArticles: KBArticle[] = [
@@ -77,20 +80,239 @@ const mockMetrics: SystemMetrics = {
   accuracyTrend: [72, 74, 75, 76, 78, 78.4]
 };
 
+const initialTrainingState: TrainingState = {
+  status: 'idle',
+  newKBCountSinceLastTraining: 87, // Demo: close to threshold
+  triggerThreshold: KB_TRAINING_THRESHOLD,
+  stepProgress: 0
+};
+
+// Training step descriptions for UI
+const TRAINING_STEPS: Record<TrainingStep, { label: string; description: string }> = {
+  lock_ingestion: { label: 'Locking Ingestion', description: 'Pausing new KB approvals...' },
+  create_checkpoint: { label: 'Creating Checkpoint', description: 'Saving system state...' },
+  retrieval_evaluation: { label: 'Evaluating Retrieval', description: 'Running Hit@K and MRR tests...' },
+  prompt_optimization: { label: 'Optimizing Prompts', description: 'Adjusting extraction prompts...' },
+  embedding_refresh: { label: 'Refreshing Embeddings', description: 'Re-embedding new KBs...' },
+  quality_validation: { label: 'Validating Quality', description: 'Checking KB quality scores...' },
+  update_metrics: { label: 'Updating Metrics', description: 'Persisting new metrics...' },
+  unlock_system: { label: 'Unlocking System', description: 'Resuming normal operations...' }
+};
+
+const TRAINING_STEP_ORDER: TrainingStep[] = [
+  'lock_ingestion',
+  'create_checkpoint',
+  'retrieval_evaluation',
+  'prompt_optimization',
+  'embedding_refresh',
+  'quality_validation',
+  'update_metrics',
+  'unlock_system'
+];
+
 export function useSupportSystem() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
   const [metrics, setMetrics] = useState<SystemMetrics>(mockMetrics);
+  const [trainingState, setTrainingState] = useState<TrainingState>(initialTrainingState);
+  const [checkpoints, setCheckpoints] = useState<TrainingCheckpoint[]>([]);
+  const trainingAbortRef = useRef(false);
+
+  // Check if training should be triggered
+  const shouldTriggerTraining = trainingState.newKBCountSinceLastTraining >= trainingState.triggerThreshold;
+
+  // Simulate training step execution
+  const executeTrainingStep = async (step: TrainingStep, stepIndex: number): Promise<boolean> => {
+    if (trainingAbortRef.current) return false;
+
+    const baseProgress = (stepIndex / TRAINING_STEP_ORDER.length) * 100;
+    setTrainingState(prev => ({
+      ...prev,
+      currentStep: step,
+      stepProgress: baseProgress,
+      estimatedTimeRemaining: (TRAINING_STEP_ORDER.length - stepIndex) * 15
+    }));
+
+    // Simulate step processing with incremental progress
+    for (let i = 0; i <= 10; i++) {
+      if (trainingAbortRef.current) return false;
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setTrainingState(prev => ({
+        ...prev,
+        stepProgress: baseProgress + (i / 10) * (100 / TRAINING_STEP_ORDER.length)
+      }));
+    }
+
+    return true;
+  };
+
+  // Main training cycle
+  const runTrainingCycle = useCallback(async () => {
+    if (trainingState.status === 'in_progress') return;
+
+    trainingAbortRef.current = false;
+    const startTime = new Date().toISOString();
+    const accuracyBefore = metrics.accuracyTrend[metrics.accuracyTrend.length - 1] || 78;
+    const coverageBefore = metrics.coveragePercent;
+
+    setTrainingState(prev => ({
+      ...prev,
+      status: 'in_progress',
+      stepProgress: 0,
+      error: undefined
+    }));
+
+    try {
+      // Execute each training step
+      for (let i = 0; i < TRAINING_STEP_ORDER.length; i++) {
+        const step = TRAINING_STEP_ORDER[i];
+        const success = await executeTrainingStep(step, i);
+        
+        if (!success) {
+          // Training was paused/aborted - save checkpoint for resume
+          const checkpoint: TrainingCheckpoint = {
+            id: `CP-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            kbCountAtCheckpoint: metrics.kbCount,
+            vectorIndexVersion: 1,
+            promptVersion: 'v1.2',
+            metrics: {
+              hitAt1: 0.72,
+              hitAt3: 0.85,
+              mrr: 0.78,
+              coverage: metrics.coveragePercent,
+              kbQualityScore: 0.82
+            },
+            status: 'partial',
+            resumeData: {
+              lastCompletedStep: TRAINING_STEP_ORDER[Math.max(0, i - 1)],
+              pendingKBIds: []
+            }
+          };
+          setCheckpoints(prev => [...prev, checkpoint]);
+          setTrainingState(prev => ({
+            ...prev,
+            status: 'paused',
+            currentStep: step
+          }));
+          return;
+        }
+      }
+
+      // Training completed successfully
+      const accuracyAfter = accuracyBefore + 1.2 + Math.random() * 0.5;
+      const coverageAfter = Math.min(100, coverageBefore + 0.5);
+      
+      const finalCheckpoint: TrainingCheckpoint = {
+        id: `CP-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        kbCountAtCheckpoint: metrics.kbCount,
+        vectorIndexVersion: 2,
+        promptVersion: 'v1.3',
+        metrics: {
+          hitAt1: 0.74,
+          hitAt3: 0.87,
+          mrr: 0.80,
+          coverage: coverageAfter,
+          kbQualityScore: 0.85
+        },
+        status: 'complete'
+      };
+      setCheckpoints(prev => [...prev, finalCheckpoint]);
+
+      setTrainingState(prev => ({
+        ...prev,
+        status: 'completed',
+        newKBCountSinceLastTraining: 0,
+        stepProgress: 100,
+        currentStep: undefined,
+        estimatedTimeRemaining: 0,
+        lastTrainingResult: {
+          startTime,
+          endTime: new Date().toISOString(),
+          kbsProcessed: prev.newKBCountSinceLastTraining,
+          accuracyBefore,
+          accuracyAfter,
+          coverageBefore,
+          coverageAfter,
+          promptsUpdated: true,
+          embeddingsRefreshed: prev.newKBCountSinceLastTraining
+        }
+      }));
+
+      // Update metrics with improvements
+      setMetrics(prev => ({
+        ...prev,
+        lastCheckpoint: new Date().toISOString(),
+        coveragePercent: coverageAfter,
+        accuracyTrend: [...prev.accuracyTrend.slice(-5), accuracyAfter]
+      }));
+
+      // Reset to idle after a short delay
+      setTimeout(() => {
+        setTrainingState(prev => ({ ...prev, status: 'idle' }));
+      }, 3000);
+
+    } catch (error) {
+      setTrainingState(prev => ({
+        ...prev,
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Training failed'
+      }));
+    }
+  }, [trainingState.status, metrics]);
+
+  // Resume from checkpoint
+  const resumeTraining = useCallback(async () => {
+    const lastCheckpoint = checkpoints[checkpoints.length - 1];
+    if (!lastCheckpoint?.resumeData) {
+      // No resume data, start fresh
+      return runTrainingCycle();
+    }
+
+    const resumeFromStep = TRAINING_STEP_ORDER.indexOf(lastCheckpoint.resumeData.lastCompletedStep);
+    if (resumeFromStep === -1) {
+      return runTrainingCycle();
+    }
+
+    trainingAbortRef.current = false;
+    setTrainingState(prev => ({
+      ...prev,
+      status: 'in_progress',
+      stepProgress: ((resumeFromStep + 1) / TRAINING_STEP_ORDER.length) * 100
+    }));
+
+    // Continue from next step
+    for (let i = resumeFromStep + 1; i < TRAINING_STEP_ORDER.length; i++) {
+      const step = TRAINING_STEP_ORDER[i];
+      const success = await executeTrainingStep(step, i);
+      if (!success) {
+        setTrainingState(prev => ({ ...prev, status: 'paused' }));
+        return;
+      }
+    }
+
+    // Complete as normal
+    setTrainingState(prev => ({
+      ...prev,
+      status: 'completed',
+      newKBCountSinceLastTraining: 0,
+      stepProgress: 100
+    }));
+  }, [checkpoints, runTrainingCycle]);
+
+  // Pause training
+  const pauseTraining = useCallback(() => {
+    trainingAbortRef.current = true;
+  }, []);
 
   const searchKnowledge = useCallback(async (query: string): Promise<SearchResult | null> => {
     setIsSearching(true);
     setSearchResult(null);
     
-    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Simple keyword matching for demo
     const queryLower = query.toLowerCase();
     const matched = mockKBArticles.find(kb => 
       kb.title.toLowerCase().includes(queryLower) ||
@@ -131,7 +353,6 @@ export function useSupportSystem() {
 
   const submitFeedback = useCallback(async (articleId: string, helpful: boolean) => {
     console.log(`Feedback for ${articleId}: ${helpful ? 'helpful' : 'not helpful'}`);
-    // In real implementation, this would update learning events
   }, []);
 
   const resolveTicket = useCallback(async (ticketId: string, resolution: string) => {
@@ -167,6 +388,12 @@ export function useSupportSystem() {
   }, [tickets]);
 
   const approveKB = useCallback(async (ticketId: string, editedDraft?: Partial<KBArticle>) => {
+    // Check if training is in progress (soft lock)
+    if (trainingState.status === 'in_progress') {
+      console.warn('KB approval paused - learning cycle in progress');
+      return;
+    }
+
     setTickets(prev => prev.map(t => 
       t.id === ticketId 
         ? { ...t, status: 'closed' as const, kbDraft: { ...t.kbDraft, ...editedDraft, status: 'approved' as const } }
@@ -178,7 +405,13 @@ export function useSupportSystem() {
       pendingTickets: Math.max(0, prev.pendingTickets - 1),
       coveragePercent: Math.min(100, prev.coveragePercent + 0.1)
     }));
-  }, []);
+
+    // Increment new KB counter for auto-retraining trigger
+    setTrainingState(prev => ({
+      ...prev,
+      newKBCountSinceLastTraining: prev.newKBCountSinceLastTraining + 1
+    }));
+  }, [trainingState.status]);
 
   const rejectKB = useCallback(async (ticketId: string, reason: string) => {
     console.log(`KB rejected for ${ticketId}: ${reason}`);
@@ -189,11 +422,23 @@ export function useSupportSystem() {
     ));
   }, []);
 
+  // Auto-trigger training when threshold is reached
+  useEffect(() => {
+    if (shouldTriggerTraining && trainingState.status === 'idle') {
+      // In production, this would auto-trigger. For demo, we show a pending state.
+      setTrainingState(prev => ({ ...prev, status: 'pending' }));
+    }
+  }, [shouldTriggerTraining, trainingState.status]);
+
   return {
     isSearching,
     searchResult,
     tickets,
     metrics,
+    trainingState,
+    checkpoints,
+    shouldTriggerTraining,
+    trainingSteps: TRAINING_STEPS,
     searchKnowledge,
     raiseTicket,
     submitFeedback,
@@ -201,6 +446,9 @@ export function useSupportSystem() {
     generateKBDraft,
     approveKB,
     rejectKB,
-    setSearchResult
+    setSearchResult,
+    runTrainingCycle,
+    resumeTraining,
+    pauseTraining
   };
 }
