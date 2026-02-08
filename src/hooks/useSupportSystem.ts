@@ -4,6 +4,18 @@ import type { SearchResult, Ticket, SystemMetrics, KBArticle, TrainingState, Tra
 // Auto-retraining constants
 const KB_TRAINING_THRESHOLD = 100;
 
+// Helper to extract tags from issue text
+function extractTags(issueText: string): string[] {
+  const text = issueText.toLowerCase();
+  const tagKeywords = [
+    'voucher', 'hap', 'certification', 'recertification', 'profile', 'login',
+    'payment', 'transaction', 'error', 'reference', 'backend', 'mismatch',
+    'interim', 'move-out', 'ledger', 'deposit', 'statement'
+  ];
+  const found = tagKeywords.filter(kw => text.includes(kw));
+  return found.length > 0 ? found.slice(0, 4) : ['auto-generated'];
+}
+
 // Mock data for demonstration - expanded KB library
 const mockKBArticles: KBArticle[] = [
   {
@@ -176,6 +188,7 @@ const TRAINING_STEP_ORDER: TrainingStep[] = [
 export function useSupportSystem() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
+  const [kbArticles, setKbArticles] = useState<KBArticle[]>(mockKBArticles);
   const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
   const [metrics, setMetrics] = useState<SystemMetrics>(mockMetrics);
   const [trainingState, setTrainingState] = useState<TrainingState>(initialTrainingState);
@@ -379,7 +392,7 @@ export function useSupportSystem() {
     const queryLower = query.toLowerCase();
     
     // Score each KB article by relevance
-    const scoredArticles = mockKBArticles.map(kb => {
+    const scoredArticles = kbArticles.map(kb => {
       let score = 0;
       const titleLower = kb.title.toLowerCase();
       const contentLower = kb.content.toLowerCase();
@@ -424,7 +437,7 @@ export function useSupportSystem() {
     
     setIsSearching(false);
     return null;
-  }, []);
+  }, [kbArticles]);
 
   const raiseTicket = useCallback(async (issueText: string): Promise<Ticket> => {
     const newTicket: Ticket = {
@@ -485,9 +498,39 @@ export function useSupportSystem() {
       return;
     }
 
+    // Find the ticket to get the draft
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+
+    const draft = { ...ticket.kbDraft, ...editedDraft };
+    
+    // Create a full KB article from the draft
+    const newKBArticle: KBArticle = {
+      id: `KB-${Date.now().toString(16).toUpperCase()}`,
+      title: draft.title || `Resolution: ${ticket.issueText.slice(0, 50)}`,
+      summary: draft.summary || ticket.resolution || '',
+      content: draft.content || ticket.resolution || '',
+      steps: draft.steps || [],
+      placeholders: draft.placeholders || [],
+      confidence: draft.confidence || 0.85,
+      version: 1,
+      source: {
+        type: 'ticket' as const,
+        id: ticketId,
+        date: new Date().toISOString().split('T')[0]
+      },
+      tags: extractTags(ticket.issueText),
+      status: 'approved' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Add to searchable KB list
+    setKbArticles(prev => [newKBArticle, ...prev]);
+
     setTickets(prev => prev.map(t => 
       t.id === ticketId 
-        ? { ...t, status: 'closed' as const, kbDraft: { ...t.kbDraft, ...editedDraft, status: 'approved' as const } }
+        ? { ...t, status: 'closed' as const, kbDraft: { ...draft, status: 'approved' as const } }
         : t
     ));
     setMetrics(prev => ({
@@ -502,7 +545,9 @@ export function useSupportSystem() {
       ...prev,
       newKBCountSinceLastTraining: prev.newKBCountSinceLastTraining + 1
     }));
-  }, [trainingState.status]);
+
+    console.log('✅ KB Article approved and added to knowledge base:', newKBArticle.id, newKBArticle.title);
+  }, [trainingState.status, tickets]);
 
   const rejectKB = useCallback(async (ticketId: string, reason: string) => {
     console.log(`KB rejected for ${ticketId}: ${reason}`);
