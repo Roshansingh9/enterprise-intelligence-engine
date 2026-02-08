@@ -1,1 +1,17 @@
-# Extractor Prompt Template
+# Fact Extractor Prompt
+
+Extract facts from this {type}. Return JSON only.
+
+Text:
+{text}
+
+Output format:
+{{"facts":[{{"type":"problem|solution|error|procedure","content":"concise fact","confidence":0.8}}]}}
+
+Rules:
+- problem: What issue/error the customer faced
+- solution: How it was resolved
+- error: Specific error messages or codes
+- procedure: Step-by-step instructions given
+- Max 5 facts, most important first
+- Confidence 0.0-1.0 based on clarity
