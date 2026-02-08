@@ -61,7 +61,8 @@ export function AdminTab({
 
   const handleSelectTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket);
-    setResolution(ticket.resolution || '');
+    // Pre-fill with existing resolution, or AI analysis if available
+    setResolution(ticket.resolution || ticket.aiAnalysis || '');
     setShowRejectInput(false);
     setRejectReason('');
   };
