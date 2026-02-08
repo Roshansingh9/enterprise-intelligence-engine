@@ -403,8 +403,18 @@ class DatabaseManager:
             cursor.execute(f"PRAGMA table_info({table})")
             existing_cols = {row[1] for row in cursor.fetchall()}
             
+            # Debug: log columns for troubleshooting
+            logger.debug(f"Table {table} expects columns: {existing_cols}")
+            logger.debug(f"DataFrame has columns: {list(df.columns)}")
+            
             # Filter to matching columns (ensure unique)
             matching_cols = list(dict.fromkeys([col for col in df.columns if col in existing_cols]))
+            
+            # If no matching columns (except auto-increment id), log warning
+            if not matching_cols or matching_cols == ['id']:
+                logger.warning(f"No matching columns for table {table}. Excel cols: {list(df.columns)[:10]}, DB cols: {list(existing_cols)[:10]}")
+                return 0
+            
             df_filtered = df[matching_cols]
             
             # Build insert query
