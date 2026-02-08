@@ -1,0 +1,265 @@
+# =============================================================================
+# SUPPORT AI SYSTEM - CONFIGURATION
+# Self-Learning Support Knowledge Engine
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SYSTEM SETTINGS
+# -----------------------------------------------------------------------------
+system:
+  name: "SupportMind AI"
+  version: "1.0.0"
+  environment: "development"  # development, staging, production
+  debug: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# -----------------------------------------------------------------------------
+# LLM CONFIGURATION
+# -----------------------------------------------------------------------------
+llm:
+  provider: "ollama"  # ollama, openai (fallback)
+  
+  ollama:
+    endpoint: "http://localhost:11434"
+    model: "llama3"
+    fallback_models:
+      - "llama3.1"
+      - "mistral"
+      - "phi3"
+    timeout: 120
+    max_retries: 3
+    retry_delay: 2
+    
+  # Fallback provider (if Ollama unavailable)
+  openai:
+    endpoint: "https://api.openai.com/v1"
+    model: "gpt-3.5-turbo"
+    api_key_env: "OPENAI_API_KEY"
+    
+  # Generation parameters
+  generation:
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 2048
+    stop_sequences: []
+
+# -----------------------------------------------------------------------------
+# DATABASE CONFIGURATION
+# -----------------------------------------------------------------------------
+database:
+  path: "db/support.db"
+  backup_enabled: true
+  backup_interval: 3600  # seconds
+  backup_dir: "data/backups"
+  max_backups: 10
+
+# -----------------------------------------------------------------------------
+# DATA PATHS
+# -----------------------------------------------------------------------------
+paths:
+  raw_excel: "data/raw_excel"
+  processed: "data/processed"
+  backups: "data/backups"
+  embeddings: "embeddings"
+  faiss_index: "embeddings/faiss_index"
+  bm25_index: "embeddings/bm25_index"
+  versions: "versions/kb_versions"
+  learning_state: "learning_state"
+  logs: "logs"
+  metrics: "metrics"
+  prompts: "prompts"
+
+# -----------------------------------------------------------------------------
+# INGESTION SETTINGS
+# -----------------------------------------------------------------------------
+ingestion:
+  excel_file: "data/raw_excel/SupportMind_Final_Data.xlsx"
+  batch_size: 100
+  validate_schema: true
+  skip_invalid_rows: false
+
+# -----------------------------------------------------------------------------
+# EMBEDDING CONFIGURATION
+# -----------------------------------------------------------------------------
+embeddings:
+  model: "all-MiniLM-L6-v2"  # SentenceTransformers model
+  dimension: 384
+  use_ollama_embeddings: false  # Use local model instead
+  batch_size: 32
+  normalize: true
+
+# -----------------------------------------------------------------------------
+# HYBRID RETRIEVAL CONFIGURATION
+# -----------------------------------------------------------------------------
+retrieval:
+  # Top-K for each stage
+  semantic_top_k: 50
+  bm25_top_k: 50
+  final_top_k: 10
+  
+  # Score fusion weights
+  weights:
+    semantic: 0.35
+    bm25: 0.25
+    validation: 0.20
+    recency: 0.20
+  
+  # LLM reranking
+  rerank_enabled: true
+  rerank_top_k: 20
+  
+  # Metadata filters
+  min_confidence: 0.5
+  allowed_statuses:
+    - "approved"
+    - "pending_review"
+
+# -----------------------------------------------------------------------------
+# LEARNING CONFIGURATION
+# -----------------------------------------------------------------------------
+learning:
+  # Rolling buffer
+  buffer_size: 500
+  buffer_file: "learning_state/buffer.pkl"
+  
+  # Batch training
+  num_rounds: 3
+  train_ratio: 0.7
+  validate_ratio: 0.3
+  
+  # Checkpointing
+  checkpoint_file: "learning_state/checkpoints.json"
+  checkpoint_interval: 50  # Save every N batches
+  
+  # Optimization
+  learning_rate: 0.01
+  momentum: 0.9
+  optimizer_state_file: "learning_state/optimizer_state.json"
+
+# -----------------------------------------------------------------------------
+# EVALUATION CONFIGURATION
+# -----------------------------------------------------------------------------
+evaluation:
+  # Retrieval metrics
+  hit_at_k: [1, 3, 5, 10]
+  compute_mrr: true
+  compute_coverage: true
+  
+  # KB Quality metrics
+  cosine_threshold: 0.8
+  structural_check: true
+  llm_judge_enabled: true
+  
+  # QA scoring
+  qa_sample_size: 100
+  violation_threshold: 0.1
+  
+  # Output
+  results_file: "metrics/batch_results.csv"
+  trends_file: "metrics/trends.json"
+
+# -----------------------------------------------------------------------------
+# GOVERNANCE CONFIGURATION
+# -----------------------------------------------------------------------------
+governance:
+  # Confidence thresholds
+  auto_approve_threshold: 0.95
+  human_review_threshold: 0.7
+  reject_threshold: 0.5
+  
+  # PII detection
+  pii_detection_enabled: true
+  pii_entities:
+    - "PERSON"
+    - "EMAIL_ADDRESS"
+    - "PHONE_NUMBER"
+    - "CREDIT_CARD"
+    - "US_SSN"
+  pii_action: "redact"  # redact, mask, flag
+  
+  # Hallucination detection
+  hallucination_check_enabled: true
+  citation_required: true
+  
+  # Human override
+  require_human_approval: false
+  approval_queue_size: 50
+
+# -----------------------------------------------------------------------------
+# AGENTS CONFIGURATION
+# -----------------------------------------------------------------------------
+agents:
+  extractor:
+    prompt_file: "prompts/extractor.txt"
+    max_facts_per_ticket: 10
+    
+  gap_detector:
+    prompt_file: "prompts/gap_detector.txt"
+    min_gap_confidence: 0.7
+    
+  kb_generator:
+    prompt_file: "prompts/generator.txt"
+    template_version: "v1"
+    include_examples: true
+    max_examples: 3
+    
+  compliance:
+    prompt_file: "prompts/compliance.txt"
+    strict_mode: true
+    
+  qa_scorer:
+    prompt_file: "prompts/scorer.txt"
+    dimensions:
+      - "accuracy"
+      - "completeness"
+      - "clarity"
+      - "compliance"
+    weight_accuracy: 0.4
+    weight_completeness: 0.3
+    weight_clarity: 0.2
+    weight_compliance: 0.1
+    
+  learning:
+    prompt_optimization_enabled: true
+    example_memory_size: 50
+
+# -----------------------------------------------------------------------------
+# OPTIMIZATION FEATURES
+# -----------------------------------------------------------------------------
+optimization:
+  # Query rewriting
+  query_rewrite_enabled: true
+  
+  # Caching
+  cache_enabled: true
+  cache_size: 1000
+  cache_ttl: 3600  # seconds
+  
+  # Adaptive thresholds
+  adaptive_thresholds_enabled: true
+  threshold_update_interval: 100  # queries
+
+# -----------------------------------------------------------------------------
+# LOGGING CONFIGURATION
+# -----------------------------------------------------------------------------
+logging:
+  system_log: "logs/system.log"
+  learning_log: "logs/learning.log"
+  error_log: "logs/errors.log"
+  
+  # Log rotation
+  max_size_mb: 50
+  backup_count: 5
+  
+  # Console output
+  console_enabled: true
+  rich_console: true
+
+# -----------------------------------------------------------------------------
+# PROGRESS TRACKING
+# -----------------------------------------------------------------------------
+progress:
+  output_file: "metrics/progress.json"
+  console_update_interval: 10  # seconds
+  show_eta: true
+  show_phase: true
