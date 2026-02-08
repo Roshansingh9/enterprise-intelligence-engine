@@ -48,9 +48,14 @@ def setup_logging(config: Dict[str, Any], log_level: str = "INFO") -> None:
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
+    # Extract just the filename (remove any path prefix to avoid logs/logs issue)
+    system_log_name = Path(log_config.get('system_log', 'system.log')).name
+    error_log_name = Path(log_config.get('error_log', 'errors.log')).name
+    learning_log_name = Path(log_config.get('learning_log', 'learning.log')).name
+    
     # System log handler (all logs)
     system_handler = RotatingFileHandler(
-        log_dir / log_config.get('system_log', 'system.log'),
+        log_dir / system_log_name,
         maxBytes=max_size,
         backupCount=backup_count
     )
@@ -60,7 +65,7 @@ def setup_logging(config: Dict[str, Any], log_level: str = "INFO") -> None:
     
     # Error log handler (errors only)
     error_handler = RotatingFileHandler(
-        log_dir / log_config.get('error_log', 'errors.log'),
+        log_dir / error_log_name,
         maxBytes=max_size,
         backupCount=backup_count
     )
@@ -71,7 +76,7 @@ def setup_logging(config: Dict[str, Any], log_level: str = "INFO") -> None:
     # Learning log handler
     learning_logger = logging.getLogger('learning')
     learning_handler = RotatingFileHandler(
-        log_dir / log_config.get('learning_log', 'learning.log'),
+        log_dir / learning_log_name,
         maxBytes=max_size,
         backupCount=backup_count
     )
