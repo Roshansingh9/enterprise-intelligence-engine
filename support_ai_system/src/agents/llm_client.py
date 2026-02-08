@@ -208,69 +208,104 @@ class LLMClient:
         self,
         prompt: str,
         schema: Dict[str, Any],
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        max_retries: int = 2
     ) -> Dict[str, Any]:
         """
-        Generate structured JSON output.
+        Generate structured JSON output with robust parsing.
         
         Args:
             prompt: User prompt
             schema: Expected JSON schema
             system_prompt: Optional system prompt
+            max_retries: Retries for JSON parse failures
             
         Returns:
             Parsed JSON object
         """
-        schema_str = json.dumps(schema, indent=2)
-        
+        # Simplified prompt for faster generation
         full_prompt = f"""{prompt}
 
-Respond with valid JSON matching this schema:
-{schema_str}
-
-JSON Response:"""
+Return ONLY valid JSON. No explanations."""
         
-        response = self.generate(
-            full_prompt,
-            system_prompt=system_prompt,
-            temperature=0.3  # Lower temperature for structured output
-        )
+        for attempt in range(max_retries):
+            response = self.generate(
+                full_prompt,
+                system_prompt=system_prompt,
+                temperature=0.1,  # Very low for consistent JSON
+                max_tokens=1024  # Limit output size
+            )
+            
+            parsed = self._extract_json(response)
+            if parsed:
+                return parsed
+            
+            logger.warning(f"JSON parse attempt {attempt + 1} failed, retrying...")
         
-        # Extract JSON from response
+        logger.error("Failed to parse JSON after retries")
+        return {}
+    
+    def _extract_json(self, response: str) -> Optional[Dict[str, Any]]:
+        """Extract and parse JSON from LLM response."""
         try:
-            # Try to find JSON in response
             response = response.strip()
             
             # Handle markdown code blocks
             if '```json' in response:
                 start = response.find('```json') + 7
                 end = response.find('```', start)
-                response = response[start:end].strip()
+                if end > start:
+                    response = response[start:end].strip()
             elif '```' in response:
                 start = response.find('```') + 3
                 end = response.find('```', start)
-                response = response[start:end].strip()
+                if end > start:
+                    response = response[start:end].strip()
             
             # Find JSON object
             if '{' in response:
                 start = response.find('{')
-                # Find matching closing brace
                 depth = 0
+                end_idx = len(response)
                 for i, c in enumerate(response[start:]):
                     if c == '{':
                         depth += 1
                     elif c == '}':
                         depth -= 1
                         if depth == 0:
-                            response = response[start:start + i + 1]
+                            end_idx = start + i + 1
                             break
+                response = response[start:end_idx]
+            
+            # Fix common JSON issues
+            response = self._fix_json(response)
             
             return json.loads(response)
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            logger.debug(f"Raw response: {response}")
-            return {}
+            logger.debug(f"JSON parse error: {e}")
+            return None
+    
+    def _fix_json(self, text: str) -> str:
+        """Fix common JSON formatting issues from LLMs."""
+        import re
+        
+        # Remove trailing commas before } or ]
+        text = re.sub(r',\s*([}\]])', r'\1', text)
+        
+        # Fix unescaped newlines in strings
+        lines = text.split('\n')
+        fixed_lines = []
+        in_string = False
+        for line in lines:
+            quote_count = line.count('"') - line.count('\\"')
+            if in_string:
+                fixed_lines[-1] += ' ' + line.strip()
+            else:
+                fixed_lines.append(line)
+            in_string = (quote_count % 2 == 1) != in_string
+        
+        return '\n'.join(fixed_lines)
     
     def get_embeddings(self, texts: List[str]) -> List[List[float]]:
         """

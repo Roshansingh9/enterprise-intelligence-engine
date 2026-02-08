@@ -148,28 +148,14 @@ class KBGeneratorAgent(BaseAgent):
                 examples=examples_text
             )
         
-        return f"""Generate a professional knowledge base article from these facts.
+        # Simplified prompt for faster generation
+        return f"""Create KB article from facts. Return JSON only.
 
 Topic: {topic}
 Product: {product}
-Category: {category}
+Facts:{facts_text[:800]}
 
-Extracted Facts:{facts_text}
-{examples_text}
-
-Generate a KB article with:
-1. title: Clear, searchable title (under 100 chars)
-2. summary: Brief overview (1-2 sentences)
-3. content: Full article with:
-   - Problem Description
-   - Prerequisites (if any)
-   - Step-by-Step Solution
-   - Additional Notes
-   - Related Topics
-4. tags: Relevant keywords (3-5 tags)
-5. confidence: Your confidence in accuracy (0.0-1.0)
-
-Use professional tone. Include specific steps. Cite source facts where applicable."""
+{{"title":"short title","summary":"1 sentence","content":"Problem: X\\nSolution: Y\\nSteps: 1,2,3","tags":["tag1","tag2"],"confidence":0.8}}"""
     
     def validate_input(self, input_data: Any) -> bool:
         """Validate input."""
