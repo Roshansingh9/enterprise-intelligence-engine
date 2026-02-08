@@ -139,7 +139,8 @@ class KBGeneratorAgent(BaseAgent):
             for ex in self.example_articles[:self.max_examples]:
                 examples_text += f"\nTitle: {ex.title}\nContent: {ex.content[:300]}...\n"
         
-        if self.prompt_template:
+        # Only use template if it actually includes placeholders; default stub template would generate junk.
+        if self.prompt_template and any(ph in self.prompt_template for ph in ('{facts}', '{topic}', '{product}', '{category}')):
             return self.prompt_template.format(
                 topic=topic,
                 product=product,
