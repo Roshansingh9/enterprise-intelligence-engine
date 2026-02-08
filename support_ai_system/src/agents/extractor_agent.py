@@ -88,22 +88,19 @@ class ExtractorAgent(BaseAgent):
         return facts
     
     def _build_prompt(self, text: str, data_type: str) -> str:
-        """Build extraction prompt."""
+        """Build extraction prompt - optimized for speed."""
         
         if self.prompt_template:
             return self.prompt_template.format(text=text, type=data_type)
         
-        return f"""Extract key facts from this {data_type} transcript.
+        # Truncate text to reduce processing time
+        truncated = text[:1500] if len(text) > 1500 else text
+        
+        return f"""Extract facts from this {data_type}. Return JSON only.
 
-For each fact, identify:
-- type: problem, solution, procedure, requirement, error, or product
-- content: The actual fact (1-2 sentences)
-- confidence: 0.0 to 1.0 based on clarity
+Text: {truncated}
 
-Text:
-{text}
-
-Extract up to {self.max_facts} facts. Focus on actionable information that could help resolve similar issues."""
+{{"facts":[{{"type":"problem|solution|error","content":"brief fact","confidence":0.8}}]}}"""
     
     def validate_input(self, input_data: Any) -> bool:
         """Validate input has required fields."""
